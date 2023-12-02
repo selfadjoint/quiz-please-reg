@@ -2,14 +2,22 @@ from time import sleep
 import requests as req
 import logging
 from bs4 import BeautifulSoup
-import json
+import boto3
 
-logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
+# Set up constants
 REG_LIST_URL = 'https://yerevan.quizplease.ru/schedule'
-GAME_IDS_FILE = 'game_ids.json'
+DYNAMODB_TABLE_NAME = 'QuizPleaseReg'
 REG_URL = 'https://yerevan.quizplease.am/ajax/save-record'
+
+# Initialize a DynamoDB client
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(DYNAMODB_TABLE_NAME)
 
 
 def get_game_ids(url):
@@ -33,25 +41,25 @@ def get_game_ids(url):
 
 def save_game_ids(_game_ids):
     """
-    Saves the game IDs to a file.
+    Saves the game IDs to a DynamoDB table.
     """
     try:
-        with open(GAME_IDS_FILE, 'w') as f:
-            json.dump({'game_ids': list(_game_ids)}, f)
-    except IOError as e:
+        table.put_item(Item={'game_id': 'game_ids', 'game_ids': list(_game_ids)})
+    except Exception as e:
         logging.error('Failed to save game IDs: %s', e)
 
 
 def load_game_ids():
     """
-    Loads the games we have already registered at from a file.
+    Loads the games we have already registered at from a DynamoDB table.
     """
     try:
-        with open(GAME_IDS_FILE, 'r') as f:
-            return set(json.load(f).get('game_ids', 0))
-    except FileNotFoundError:
-        return set()
-    except IOError as e:
+        response = table.get_item(Key={'game_id': 'game_ids'})
+        if 'Item' in response:
+            return set(response['Item']['game_ids'])
+        else:
+            return set()
+    except Exception as e:
         logging.error('Failed to load game IDs: %s', e)
         return set()
 
@@ -81,7 +89,7 @@ def register(_game_id):
         raise
 
 
-def main():
+def handler(event, context):
     """
     Main function.
     """
@@ -98,4 +106,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    handler()
