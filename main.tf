@@ -45,6 +45,11 @@ resource "aws_dynamodb_table" "game_ids_table" {
     name = "game_id"
     type = "S"
   }
+
+  tags = {
+    Name    = "QuizPleaseReg"
+    Project = "QuizPlease"
+  }
 }
 
 resource "aws_lambda_function" "lambda_function" {
@@ -63,11 +68,16 @@ resource "aws_lambda_function" "lambda_function" {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.game_ids_table.name
     }
   }
+
+  tags = {
+    Name    = "QuizPleaseReg"
+    Project = "QuizPlease"
+  }
 }
 
 resource "aws_iam_role_policy" "lambda_dynamodb_access" {
-  name   = "lambda_dynamodb_access"
-  role   = aws_iam_role.lambda_execution_role.id
+  name = "lambda_dynamodb_access"
+  role = aws_iam_role.lambda_execution_role.id
 
   policy = <<EOF
 {
