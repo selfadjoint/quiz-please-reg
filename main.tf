@@ -56,7 +56,7 @@ resource "aws_lambda_function" "lambda_function" {
   filename      = "lambda.zip"
   function_name = "QuizPleaseReg"
   role          = aws_iam_role.lambda_execution_role.arn
-  handler       = "reg.handler"
+  handler       = "lambda_function.lambda_handler"
 
   source_code_hash = filebase64sha256("lambda.zip")
 

@@ -89,14 +89,14 @@ def register(_game_id):
         raise
 
 
-def handler(event, context):
+def lambda_handler(event, context):
     """
     Main function.
     """
     logging.info('Starting')
     game_ids = get_game_ids(REG_LIST_URL)
     saved_game_ids = load_game_ids()
-    new_game_ids = game_ids - saved_game_ids
+    new_game_ids = game_ids.union(set(x for x in event['game_ids'])).difference(saved_game_ids)
     logging.info('Found %d classical games, %d of them are new', len(game_ids), len(new_game_ids))
     for game_id in new_game_ids:
         register(game_id)
@@ -106,4 +106,4 @@ def handler(event, context):
 
 
 if __name__ == '__main__':
-    handler()
+    lambda_handler()
