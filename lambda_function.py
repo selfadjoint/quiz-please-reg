@@ -96,6 +96,8 @@ def lambda_handler(event, context):
     logging.info('Starting')
     game_ids = get_game_ids(REG_LIST_URL)
     saved_game_ids = load_game_ids()
+    if 'game_ids' not in event:
+        event['game_ids'] = set()
     new_game_ids = game_ids.union(set(x for x in event['game_ids'])).difference(saved_game_ids)
     logging.info('Found %d classical games, %d of them are new', len(game_ids), len(new_game_ids))
     for game_id in new_game_ids:
