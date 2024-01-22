@@ -11,21 +11,14 @@ This project contains a Python script for automating the registration process fo
 - AWS CLI, configured with access to your AWS account
 
 ## Configuration
-Create a `config.py` file within the project directory, with a dictionary named `team` containing the necessary team information for the game registration:
+Create a `terraform.tfvars` file in the project root directory with the following variables:
 
-```python
-team = {
-    'team_name': '<Team Name>',
-    'cpt_phone': '<Captain Phone>',
-    'cpt_email': '<Captain Email>',
-    'cpt_name': '<Captain Name>',
-    'team_size': <Number of Team Members>
-}
-```
+- `team_name`: Your quiz team name.
+- `cpt_email`: Captain's email address.
+- `cpt_name`: Captain's name.
+- `cpt_phone`: Captain's phone number.
+- Any other variables to overwrite the default values from `variables.tf` if needed.
 
-Replace the placeholders with your team's actual information. Add the `config.py` file to `lambda.zip` before deploying the Lambda function.
-
-Replace Terraform parameters, such as the AWS profile or region, in the `main.tf` file if necessary.
 
 ## Python Script
 The Python script `lambda_function.py` includes several functions:
@@ -45,7 +38,7 @@ The Terraform script `main.tf` will set up:
 
 ## Deployment
 To deploy the automation:
-1. Navigate to the directory with the Terraform script.
+1. Navigate to the project root directory.
 2. Run `terraform init`.
 3. Run `terraform apply`.
 

@@ -10,9 +10,9 @@ terraform {
 }
 
 provider "aws" {
-  region                   = "us-east-1"
-  shared_credentials_files = ["$HOME/.aws/credentials"] # Default path
-  profile                  = "personal"                 # Choose the profile name you want to use
+  region                   = var.aws_region
+  shared_credentials_files = var.aws_credentials_file
+  profile                  = var.aws_profile
 }
 
 data "aws_iam_policy_document" "lambda_assume_role_policy" {
@@ -46,33 +46,31 @@ resource "aws_dynamodb_table" "game_ids_table" {
     type = "S"
   }
 
-  tags = {
-    Name    = "QuizPleaseReg"
-    Project = "QuizPlease"
-  }
+  tags = var.tags
 }
 
 resource "aws_lambda_function" "lambda_function" {
-  filename      = "lambda.zip"
+  filename      = "package.zip"
   function_name = "QuizPleaseReg"
   role          = aws_iam_role.lambda_execution_role.arn
   handler       = "lambda_function.lambda_handler"
 
-  source_code_hash = filebase64sha256("lambda.zip")
+  source_code_hash = filebase64sha256("package.zip")
 
   runtime = "python3.11"
   timeout = 300
 
   environment {
     variables = {
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.game_ids_table.name
+      TEAM_NAME = var.team_name
+      CPT_EMAIL = var.cpt_email
+      CPT_NAME  = var.cpt_name
+      CPT_PHONE = var.cpt_phone
+      TEAM_SIZE = var.team_size
     }
   }
 
-  tags = {
-    Name    = "QuizPleaseReg"
-    Project = "QuizPlease"
-  }
+  tags = var.tags
 }
 
 resource "aws_iam_role_policy" "lambda_dynamodb_access" {

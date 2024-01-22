@@ -3,7 +3,7 @@ import requests as req
 import logging
 from bs4 import BeautifulSoup
 import boto3
-from config import team
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
@@ -71,11 +71,11 @@ def register(_game_id):
     """
     logging.info('Registering at game %s', _game_id)
     headers = {'Contect-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    body = {'QpRecord[teamName]': team['team_name'],
-            'QpRecord[phone]': team['cpt_phone'],
-            'QpRecord[email]': team['cpt_email'],
-            'QpRecord[captainName]': team['cpt_name'],
-            'QpRecord[count]': team['team_size'],
+    body = {'QpRecord[teamName]': os.environ['TEAM_NAME'],
+            'QpRecord[phone]': os.environ['CPT_PHONE'],
+            'QpRecord[email]': os.environ['CPT_EMAIL'],
+            'QpRecord[captainName]': os.environ['CPT_NAME'],
+            'QpRecord[count]': os.environ['TEAM_SIZE'],
             'QpRecord[custom_fields_values]': [],
             'QpRecord[comment]': '',
             'QpRecord[game_id]': _game_id,
