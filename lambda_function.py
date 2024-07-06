@@ -1,4 +1,5 @@
 from time import sleep
+from datetime import date
 import requests as req
 import logging
 from bs4 import BeautifulSoup
@@ -12,57 +13,129 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Set up constants
-REG_LIST_URL = 'https://yerevan.quizplease.ru/schedule'
-DYNAMODB_TABLE_NAME = 'QuizPleaseReg'
+SCHEDULE_URL = 'https://yerevan.quizplease.ru/schedule'
+GAME_PAGE_URL_TEMPLATE = 'https://yerevan.quizplease.ru/game-page?id={}'
+DYNAMODB_TABLE_NAME = os.environ['DYNAMODB_TABLE_NAME']
 REG_URL = 'https://yerevan.quizplease.am/ajax/save-record'
 
+# Month translation dictionary
+month_translation = {
+    'января': '01',
+    'февраля': '02',
+    'марта': '03',
+    'апреля': '04',
+    'мая': '05',
+    'июня': '06',
+    'июля': '07',
+    'августа': '08',
+    'сентября': '09',
+    'октября': '10',
+    'ноября': '11',
+    'декабря': '12'
+}
+
 # Initialize a DynamoDB client
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(DYNAMODB_TABLE_NAME)
+dynamodb = boto3.client('dynamodb')
 
 
-def get_game_ids(url):
+def get_game_ids(_url):
     """
     Gets the game IDs from the registration page.
     """
     try:
-        reg_page = req.get(url)
+        reg_page = req.get(_url)
         reg_page.raise_for_status()
     except req.exceptions.RequestException as e:
-        logging.error('Failed to get game IDs: %s', e)
-        return set()
+        logging.error('Failed to get game IDs from the registration page: %s', e)
+        return []
 
     reg_soup = BeautifulSoup(reg_page.content, 'html.parser')
-    game_ids = set()
+    game_ids = []
     for game in reg_soup.find_all(class_='schedule-block-head w-inline-block'):
         if game.find(class_='h2 h2-game-card h2-left').text == 'Квиз, плиз! YEREVAN':
-            game_ids.add(game['href'].split('=')[1])
+            game_ids.append(game['href'].split('=')[1])
+    logging.info(f'Parsed {len(game_ids)} game IDs from the registration page')
     return game_ids
 
 
-def save_game_ids(_game_ids):
+def get_game_date(_game_id):
     """
-    Saves the game IDs to a DynamoDB table.
+    Fetches and processes data for a single game.
     """
+    game_url = GAME_PAGE_URL_TEMPLATE.format(_game_id)
     try:
-        table.put_item(Item={'game_id': 'game_ids', 'game_ids': list(_game_ids)})
+        page = req.get(game_url)
+        soup = BeautifulSoup(page.content, 'html.parser')
+        _date_raw = soup.find_all("div", class_='game-info-column')[2].find("div", class_='text').text.split()
     except Exception as e:
-        logging.error('Failed to save game IDs: %s', e)
+        logging.error(f"Failed to get game date for game ID {_game_id}: {e}")
+        return None
+
+    _date_raw[0] = '0' + _date_raw[0] if len(_date_raw[0]) == 1 else _date_raw[0]
+    _date_raw[1] = month_translation[_date_raw[1]]
+
+    # Some hardcode for the correct game year determination. Needs to be updated every year
+    if int(_game_id) < 49999:
+        _date_raw.append('2022')
+    elif int(_game_id) < 69919:
+        _date_raw.append('2023')
+    else:
+        _date_raw.append('2024')
+
+    _date = '-'.join(_date_raw[::-1])
+    return _date
 
 
-def load_game_ids():
+def put_item(_table, _game_id, _game_date, _reg_date):
     """
-    Loads the games we have already registered at from a DynamoDB table.
+    Puts an item to a DynamoDB table.
     """
     try:
-        response = table.get_item(Key={'game_id': 'game_ids'})
-        if 'Item' in response:
-            return set(response['Item']['game_ids'])
+        response = dynamodb.put_item(TableName=_table,
+                                     Item={'game_id': {'N': _game_id},
+                                           'game_date': {'S': _game_date},
+                                           'is_poll_created': {'N': '0'},
+                                           'reg_date': {'S': _reg_date}
+                                           }
+                                     )
+        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+            logging.info(f'Game {_game_id} put successfully to table {_table}')
+
+        return None
+
+    except Exception as e:
+        logging.error(f'Failed to put item {_game_id} to table {_table}: {e}')
+
+
+def get_all_game_ids(_table):
+    """
+    Gets all game IDs from a DynamoDB table.
+    """
+    # Initialize variables to store results
+    game_ids = []
+    last_evaluated_key = None
+
+    # Use a loop to handle pagination
+    while True:
+        if last_evaluated_key:
+            response = dynamodb.scan(
+                TableName=_table,
+                ProjectionExpression='game_id',
+                ExclusiveStartKey=last_evaluated_key
+            )
         else:
-            return set()
-    except Exception as e:
-        logging.error('Failed to load game IDs: %s', e)
-        return set()
+            response = dynamodb.scan(
+                TableName=_table,
+                ProjectionExpression='game_id'
+            )
+
+        game_ids.extend([item['game_id']['N'] for item in response['Items']])
+        last_evaluated_key = response.get('LastEvaluatedKey')
+
+        if not last_evaluated_key:
+            break
+
+    return game_ids
 
 
 def register(_game_id):
@@ -95,18 +168,24 @@ def lambda_handler(event, context):
     Main function.
     """
     logging.info('Starting')
-    game_ids = get_game_ids(REG_LIST_URL)
-    saved_game_ids = load_game_ids()
+    game_ids = get_game_ids(SCHEDULE_URL)
+    saved_game_ids = get_all_game_ids(DYNAMODB_TABLE_NAME)
+
+    # Game ids may be added manually during Lambda invocation. Format: {"game_ids": []}
     if 'game_ids' not in event:
-        event['game_ids'] = set()
-    new_game_ids = game_ids.union(set(x for x in event['game_ids'])).difference(saved_game_ids)
+        event['game_ids'] = []
+    logging.info(f'{len(event["game_ids"])} game(s) manually added')
+
+    game_ids.extend(str(x) for x in event['game_ids'])
+    new_game_ids = [x for x in game_ids if x not in saved_game_ids]
     logging.info('Found %d classical games, %d of them are new', len(game_ids), len(new_game_ids))
+
     for game_id in new_game_ids:
         register(game_id)
-    save_game_ids(saved_game_ids.union(new_game_ids))
-    logging.info('Done')
-    sleep(1)
+        put_item(DYNAMODB_TABLE_NAME, game_id, get_game_date(game_id), str(date.today()))
+        sleep(1)
+    logging.info('All done!')
 
 
 if __name__ == '__main__':
-    lambda_handler()
+    lambda_handler(event={"game_ids": []}, context=None)

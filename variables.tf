@@ -41,3 +41,8 @@ variable "team_size" {
   type    = number
   default = 9
 }
+
+variable "dynamodb_table_name" {
+  type    = string
+  default = "QuizPleaseReg"
+}

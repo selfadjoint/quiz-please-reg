@@ -9,6 +9,7 @@ terraform {
   required_version = ">= 1.2.0"
 }
 
+
 provider "aws" {
   region                   = var.aws_region
   shared_credentials_files = var.aws_credentials_file
@@ -36,43 +37,6 @@ resource "aws_iam_role_policy_attachment" "lambda_execution_role_policy_attachme
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_dynamodb_table" "game_ids_table" {
-  name         = "QuizPleaseReg"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "game_id"
-
-  attribute {
-    name = "game_id"
-    type = "S"
-  }
-
-  tags = var.tags
-}
-
-resource "aws_lambda_function" "lambda_function" {
-  filename      = "package.zip"
-  function_name = "QuizPleaseReg"
-  role          = aws_iam_role.lambda_execution_role.arn
-  handler       = "lambda_function.lambda_handler"
-
-  source_code_hash = filebase64sha256("package.zip")
-
-  runtime = "python3.11"
-  timeout = 300
-
-  environment {
-    variables = {
-      TEAM_NAME = var.team_name
-      CPT_EMAIL = var.cpt_email
-      CPT_NAME  = var.cpt_name
-      CPT_PHONE = var.cpt_phone
-      TEAM_SIZE = var.team_size
-    }
-  }
-
-  tags = var.tags
-}
-
 resource "aws_iam_role_policy" "lambda_dynamodb_access" {
   name = "lambda_dynamodb_access"
   role = aws_iam_role.lambda_execution_role.id
@@ -86,13 +50,84 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
       "Action": [
         "dynamodb:GetItem",
         "dynamodb:PutItem",
-        "dynamodb:UpdateItem"
+        "dynamodb:Scan",
+        "dynamodb:Query"
       ],
       "Resource": "${aws_dynamodb_table.game_ids_table.arn}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Scan",
+        "dynamodb:Query"
+      ],
+      "Resource": "${aws_dynamodb_table.game_ids_table.arn}/index/*"
     }
   ]
 }
 EOF
+}
+
+resource "aws_dynamodb_table" "game_ids_table" {
+  name         = var.dynamodb_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "game_id"
+
+  attribute {
+    name = "game_id"
+    type = "N"
+  }
+
+  attribute {
+    name = "game_date"
+    type = "S"
+  }
+
+  attribute {
+    name = "is_poll_created"
+    type = "N"
+  }
+
+  global_secondary_index {
+    name            = "game_date_index"
+    hash_key        = "game_date"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "poll_created_index"
+    hash_key        = "is_poll_created"
+    range_key       = "game_id"
+    projection_type = "ALL"
+  }
+
+  tags = var.tags
+}
+
+resource "aws_lambda_function" "lambda_function" {
+  description   = "Register for QuizPlease games"
+  filename      = "package.zip"
+  function_name = "QuizPleaseReg"
+  role          = aws_iam_role.lambda_execution_role.arn
+  handler       = "lambda_function.lambda_handler"
+
+  source_code_hash = filebase64sha256("package.zip")
+
+  runtime = "python3.11"
+  timeout = 300
+
+  environment {
+    variables = {
+      TEAM_NAME           = var.team_name
+      CPT_EMAIL           = var.cpt_email
+      CPT_NAME            = var.cpt_name
+      CPT_PHONE           = var.cpt_phone
+      TEAM_SIZE           = var.team_size
+      DYNAMODB_TABLE_NAME = var.dynamodb_table_name
+    }
+  }
+
+  tags = var.tags
 }
 
 resource "aws_cloudwatch_event_rule" "every_monday_rule" {
