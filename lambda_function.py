@@ -1,10 +1,11 @@
-from time import sleep
-from datetime import date
-import requests as req
 import logging
-from bs4 import BeautifulSoup
-import boto3
 import os
+from datetime import date
+from time import sleep
+
+import boto3
+import requests as req
+from bs4 import BeautifulSoup
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
@@ -178,7 +179,7 @@ def lambda_handler(event, context):
 
     game_ids.extend(str(x) for x in event['game_ids'])
     new_game_ids = [x for x in game_ids if x not in saved_game_ids]
-    logging.info('Found %d classical games, %d of them are new', len(game_ids), len(new_game_ids))
+    logging.info('Found %d classical game(s), %d of them are new', len(game_ids), len(new_game_ids))
 
     for game_id in new_game_ids:
         register(game_id)
