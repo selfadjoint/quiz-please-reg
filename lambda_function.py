@@ -8,8 +8,9 @@ import requests as req
 from bs4 import BeautifulSoup
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(
+    level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -32,7 +33,7 @@ month_translation = {
     'сентября': '09',
     'октября': '10',
     'ноября': '11',
-    'декабря': '12'
+    'декабря': '12',
 }
 
 # Initialize a DynamoDB client
@@ -59,7 +60,7 @@ def get_game_ids(_url):
     return game_ids
 
 
-def get_game_date(_game_id):
+def get_game_attrs(_game_id):
     """
     Fetches and processes data for a single game.
     """
@@ -67,9 +68,11 @@ def get_game_date(_game_id):
     try:
         page = req.get(game_url)
         soup = BeautifulSoup(page.content, 'html.parser')
-        _date_raw = soup.find_all("div", class_='game-info-column')[2].find("div", class_='text').text.split()
+        _date_raw = soup.find_all('div', class_='game-info-column')[2].find('div', class_='text').text.split()
+        _type = soup.find_all('div', class_='game-heading-info')[0].find('h1').text.replace(' YEREVAN', '')
+        _type = 'классическая игра' if _type == 'Квиз, плиз!' else _type
     except Exception as e:
-        logging.error(f"Failed to get game date for game ID {_game_id}: {e}")
+        logging.error(f'Failed to get game date for game ID {_game_id}: {e}')
         return None
 
     _date_raw[0] = '0' + _date_raw[0] if len(_date_raw[0]) == 1 else _date_raw[0]
@@ -84,21 +87,24 @@ def get_game_date(_game_id):
         _date_raw.append('2024')
 
     _date = '-'.join(_date_raw[::-1])
-    return _date
+    return _date, _type
 
 
-def put_item(_table, _game_id, _game_date, _reg_date):
+def put_item(_table, _game_id, _game_date, _reg_date, _game_type):
     """
     Puts an item to a DynamoDB table.
     """
     try:
-        response = dynamodb.put_item(TableName=_table,
-                                     Item={'game_id': {'N': _game_id},
-                                           'game_date': {'S': _game_date},
-                                           'is_poll_created': {'N': '0'},
-                                           'reg_date': {'S': _reg_date}
-                                           }
-                                     )
+        response = dynamodb.put_item(
+            TableName=_table,
+            Item={
+                'game_id': {'N': _game_id},
+                'game_date': {'S': _game_date},
+                'is_poll_created': {'N': '0'},
+                'reg_date': {'S': _reg_date},
+                'game_type': {'S': _game_type},
+            },
+        )
         if response['ResponseMetadata']['HTTPStatusCode'] == 200:
             logging.info(f'Game {_game_id} put successfully to table {_table}')
 
@@ -120,15 +126,10 @@ def get_all_game_ids(_table):
     while True:
         if last_evaluated_key:
             response = dynamodb.scan(
-                TableName=_table,
-                ProjectionExpression='game_id',
-                ExclusiveStartKey=last_evaluated_key
+                TableName=_table, ProjectionExpression='game_id', ExclusiveStartKey=last_evaluated_key
             )
         else:
-            response = dynamodb.scan(
-                TableName=_table,
-                ProjectionExpression='game_id'
-            )
+            response = dynamodb.scan(TableName=_table, ProjectionExpression='game_id')
 
         game_ids.extend([item['game_id']['N'] for item in response['Items']])
         last_evaluated_key = response.get('LastEvaluatedKey')
@@ -145,16 +146,17 @@ def register(_game_id):
     """
     logging.info('Registering at game %s', _game_id)
     headers = {'Contect-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    body = {'QpRecord[teamName]': os.environ['TEAM_NAME'],
-            'QpRecord[phone]': os.environ['CPT_PHONE'],
-            'QpRecord[email]': os.environ['CPT_EMAIL'],
-            'QpRecord[captainName]': os.environ['CPT_NAME'],
-            'QpRecord[count]': os.environ['TEAM_SIZE'],
-            'QpRecord[custom_fields_values]': [],
-            'QpRecord[comment]': '',
-            'QpRecord[game_id]': _game_id,
-            'QpRecord[payment_type]': 2
-            }
+    body = {
+        'QpRecord[teamName]': os.environ['TEAM_NAME'],
+        'QpRecord[phone]': os.environ['CPT_PHONE'],
+        'QpRecord[email]': os.environ['CPT_EMAIL'],
+        'QpRecord[captainName]': os.environ['CPT_NAME'],
+        'QpRecord[count]': os.environ['TEAM_SIZE'],
+        'QpRecord[custom_fields_values]': [],
+        'QpRecord[comment]': '',
+        'QpRecord[game_id]': _game_id,
+        'QpRecord[payment_type]': 2,
+    }
     try:
         reg = req.post(REG_URL, data=body, headers=headers)
         reg.raise_for_status()
@@ -183,10 +185,11 @@ def lambda_handler(event, context):
 
     for game_id in new_game_ids:
         register(game_id)
-        put_item(DYNAMODB_TABLE_NAME, game_id, get_game_date(game_id), str(date.today()))
+        game_date, game_type = get_game_attrs(game_id)
+        put_item(DYNAMODB_TABLE_NAME, game_id, game_date, str(date.today()), game_type)
         sleep(1)
     logging.info('All done!')
 
 
 if __name__ == '__main__':
-    lambda_handler(event={"game_ids": []}, context=None)
+    lambda_handler(event={'game_ids': []}, context=None)
