@@ -24,7 +24,7 @@ Before you begin, ensure you have the following installed:
 ## Project Structure
 
 ```plaintext
-your-project/
+quiz-please-reg/
 ├── src/
 │   ├── main.py
 │   ├── requirements.txt
