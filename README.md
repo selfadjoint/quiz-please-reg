@@ -1,54 +1,106 @@
 
-# QuizPlease Registration Automation
+# QuizPlease Game Registration
 
-## Overview
-This project contains a Python script for automating the registration process for QuizPlease classical games in Yerevan. Additionally, there's a Terraform script provided to deploy this automation as an AWS Lambda function, which will interact with DynamoDB and AWS CloudWatch. All the AWS resources usage is within the Free Tier.
+This project contains an AWS Lambda function and Terraform configuration to register for QuizPlease games. The Lambda function scrapes the game schedule, processes game details, registers for new games, and stores game data in DynamoDB.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [Environment Variables](#environment-variables)
+- [Usage](#usage)
+- [Important Note](#important-note)
 
 ## Prerequisites
-- Python 3.x
-- AWS account with appropriate permissions
-- Terraform version >= 1.2.0
-- AWS CLI, configured with access to your AWS account
 
-## Configuration
-Create a `terraform.tfvars` file in the project root directory with the following variables:
+Before you begin, ensure you have the following installed:
 
-- `team_name`: Your quiz team name.
-- `cpt_email`: Captain's email address.
-- `cpt_name`: Captain's name.
-- `cpt_phone`: Captain's phone number.
-- Any other variables to overwrite the default values from `variables.tf` if needed.
+- [AWS CLI](https://aws.amazon.com/cli/)
+- [Terraform](https://www.terraform.io/)
+- [Python 3.8+](https://www.python.org/)
+- [pip](https://pip.pypa.io/en/stable/)
 
+## Project Structure
 
-## Python Script
-The Python script `lambda_function.py` includes several functions:
-- `get_game_ids()`: Scrapes the game IDs from the registration page.
-- `save_game_ids()`: Stores the game IDs into a DynamoDB table.
-- `load_game_ids()`: Retrieves the game IDs that have already been registered.
-- `register()`: Registers for a game given a game ID.
-- `lambda_handler()`: The AWS Lambda handler that runs the registration functions.
+```plaintext
+your-project/
+├── src/
+│   ├── main.py
+│   ├── requirements.txt
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── lambda.zip
+├── README.md
+```
 
-## Terraform Script
-The Terraform script `main.tf` will set up:
-- An IAM role for the Lambda function.
-- A DynamoDB table to store game IDs.
-- The Lambda function with the necessary permissions and environment variables.
-- A CloudWatch Event Rule to trigger the Lambda function on a schedule.
-- Permissions for CloudWatch to invoke the Lambda function.
+## Setup
 
-## Deployment
-To deploy the automation:
-1. Navigate to the project root directory.
-2. Run `terraform init`.
-3. Run `terraform apply`.
+1. **Clone the repository**:
+
+   ```bash
+   git clone https://github.com/your-repo/quiz-plese-reg.git
+   cd quiz-please-reg
+
+2. **Navigate to the Terraform directory**:
+
+   ```bash
+   cd ../terraform
+   ```
+
+3. **Initialize Terraform**:
+
+   ```bash
+   terraform init
+   ```
+
+4. **Create a `terraform.tfvars` file with the necessary variables. Example**:
+
+   ```hcl
+   aws_region                 = "us-east-1"
+   team_name                  = "YourTeamName"
+   cpt_email                  = "your-email@example.com"
+   cpt_name                   = "YourCaptainName"
+   cpt_phone                  = "1234567890"
+   team_size                  = "5"
+   dynamodb_table_name        = "QuizPleaseGames"
+   aws_credentials_file       = "~/.aws/credentials"
+   aws_profile                = "default"
+   ```
+
+4. **Apply the Terraform configuration**:
+
+   ```bash
+   terraform apply
+   ```
+
+   Review the changes and type `yes` to confirm.
+
+## Environment Variables
+
+The Lambda function uses the following environment variables:
+
+- `TEAM_NAME`: Name of the quiz team.
+- `CPT_EMAIL`: Email of the team captain.
+- `CPT_NAME`: Name of the team captain.
+- `CPT_PHONE`: Phone number of the team captain.
+- `TEAM_SIZE`: Number of team members.
+- `DYNAMODB_TABLE_NAME`: Name of the DynamoDB table to store game data.
+
+These variables are set in the Terraform configuration and passed to the Lambda function during deployment.
 
 ## Usage
-Once deployed, the Lambda function will be triggered by CloudWatch Events as per the defined schedule (every Monday) to register the team for new classical QuizPlease games.
 
-## Notes
-- Ensure the AWS CLI is properly set up with the necessary permissions.
-- You may need to adjust the CloudWatch Event Rule in the Terraform script for your scheduling needs.
-- The `config.py` file is crucial for the script to run; it must be present with valid configurations.
+Once deployed, the Lambda function will run every Monday at 11:15 UTC. It will:
+
+1. Scrape the game schedule from the QuizPlease website.
+2. Process and store new game details in DynamoDB.
+3. Register the team for new games.
+
+Logs for the Lambda function can be viewed in AWS CloudWatch.
 
 ## License
-This project is open-sourced under the MIT License.
+
+This project is licensed under the MIT License.
