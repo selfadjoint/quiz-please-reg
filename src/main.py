@@ -74,7 +74,7 @@ def get_game_attrs(_game_id):
         _venue = soup.find_all('div', class_='game-info-column')[1].find(
             'div', class_='text').text.replace(' Yerevan', '')
         _type = soup.find_all('div', class_='game-heading-info')[0].find('h1').text.replace(' YEREVAN', '')
-        _type = 'классическая игра' if _type == 'Квиз, плиз!' else _type
+        _type = 'Классическая игра' if _type == 'Квиз, плиз!' else _type
     except Exception as e:
         logging.error(f'Failed to get game date for game ID {_game_id}: {e}')
         return None
