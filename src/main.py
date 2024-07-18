@@ -69,6 +69,10 @@ def get_game_attrs(_game_id):
         page = req.get(game_url)
         soup = BeautifulSoup(page.content, 'html.parser')
         _date_raw = soup.find_all('div', class_='game-info-column')[2].find('div', class_='text').text.split()
+        _time = soup.find_all('div', class_='game-info-column')[2].find(
+            'div', class_='text text-grey').text.split()[-1]
+        _venue = soup.find_all('div', class_='game-info-column')[1].find(
+            'div', class_='text').text.replace(' Yerevan', '')
         _type = soup.find_all('div', class_='game-heading-info')[0].find('h1').text.replace(' YEREVAN', '')
         _type = 'классическая игра' if _type == 'Квиз, плиз!' else _type
     except Exception as e:
@@ -87,10 +91,10 @@ def get_game_attrs(_game_id):
         _date_raw.append('2024')
 
     _date = '-'.join(_date_raw[::-1])
-    return _date, _type
+    return _date, _time, _venue, _type
 
 
-def put_item(_table, _game_id, _game_date, _reg_date, _game_type):
+def put_item(_table, _game_id, _game_date, _reg_date, _game_type, _game_time, _game_venue):
     """
     Puts an item to a DynamoDB table.
     """
@@ -100,8 +104,10 @@ def put_item(_table, _game_id, _game_date, _reg_date, _game_type):
             Item={
                 'game_id': {'N': _game_id},
                 'game_date': {'S': _game_date},
+                'game_time': {'S': _game_time},
                 'is_poll_created': {'N': '0'},
                 'reg_date': {'S': _reg_date},
+                'game_venue': {'S': _game_venue},
                 'game_type': {'S': _game_type},
             },
         )
@@ -185,8 +191,8 @@ def lambda_handler(event, context):
 
     for game_id in new_game_ids:
         register(game_id)
-        game_date, game_type = get_game_attrs(game_id)
-        put_item(DYNAMODB_TABLE_NAME, game_id, game_date, str(date.today()), game_type)
+        game_date, game_time, game_venue, game_type = get_game_attrs(game_id)
+        put_item(DYNAMODB_TABLE_NAME, game_id, game_date, str(date.today()), game_type, game_time, game_venue)
         sleep(1)
     logging.info('All done!')
 
