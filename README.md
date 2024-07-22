@@ -1,7 +1,7 @@
 
 # QuizPlease Game Registration
 
-This project contains an AWS Lambda function and Terraform configuration to register for QuizPlease games. The Lambda function scrapes the game schedule, processes game details, registers for new games, and stores game data in DynamoDB.
+This project contains an AWS Lambda function and Terraform configuration to register for QuizPlease games. The Lambda function scrapes the game schedule, processes game details, registers for new games, and stores game data in DynamoDB. It also send the list of non-classic games to the Telegram group.
 
 ## Table of Contents
 
@@ -20,6 +20,7 @@ Before you begin, ensure you have the following installed:
 - [Terraform](https://www.terraform.io/)
 - [Python 3.8+](https://www.python.org/)
 - [pip](https://pip.pypa.io/en/stable/)
+- [Telegram bot and a group to send info to](https://core.telegram.org/bots)
 
 ## Project Structure
 
@@ -28,6 +29,7 @@ quiz-please-reg/
 ├── src/
 │   ├── main.py
 │   ├── requirements.txt
+│   ├── dependencies
 ├── terraform/
 │   ├── main.tf
 │   ├── variables.tf
@@ -68,6 +70,8 @@ quiz-please-reg/
    dynamodb_table_name        = "QuizPleaseGames"
    aws_credentials_file       = "~/.aws/credentials"
    aws_profile                = "default"
+   bot_token                  = "1234567890:ABCDEF"
+   group_id                   = "-1234567890"
    ```
 
 4. **Apply the Terraform configuration**:
@@ -88,6 +92,8 @@ The Lambda function uses the following environment variables:
 - `CPT_PHONE`: Phone number of the team captain.
 - `TEAM_SIZE`: Number of team members.
 - `DYNAMODB_TABLE_NAME`: Name of the DynamoDB table to store game data.
+- `BOT_TOKEN`: Telegram bot token.
+- `GROUP_ID`: Telegram group ID.
 
 These variables are set in the Terraform configuration and passed to the Lambda function during deployment.
 
@@ -96,8 +102,9 @@ These variables are set in the Terraform configuration and passed to the Lambda 
 Once deployed, the Lambda function will run every Monday at 11:15 UTC. It will:
 
 1. Scrape the game schedule from the QuizPlease website.
-2. Process and store new game details in DynamoDB.
-3. Register the team for new games.
+2. Process and store new classic game details in DynamoDB.
+3. Register the team for that games.
+4. Send the list of non-classic games to the Telegram group.
 
 Logs for the Lambda function can be viewed in AWS CloudWatch.
 

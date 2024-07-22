@@ -124,6 +124,8 @@ resource "aws_lambda_function" "lambda_function" {
       CPT_PHONE           = var.cpt_phone
       TEAM_SIZE           = var.team_size
       DYNAMODB_TABLE_NAME = var.dynamodb_table_name
+      BOT_TOKEN           = var.bot_token
+      GROUP_ID            = var.group_id
     }
   }
 

@@ -1,9 +1,9 @@
 import logging
 import os
-from datetime import date
 from time import sleep
 
 import boto3
+import pendulum as pdl
 import requests as req
 from bs4 import BeautifulSoup
 
@@ -19,6 +19,8 @@ SCHEDULE_URL = 'https://yerevan.quizplease.ru/schedule'
 GAME_PAGE_URL_TEMPLATE = 'https://yerevan.quizplease.ru/game-page?id={}'
 DYNAMODB_TABLE_NAME = os.environ['DYNAMODB_TABLE_NAME']
 REG_URL = 'https://yerevan.quizplease.am/ajax/save-record'
+BOT_TOKEN = os.environ['BOT_TOKEN']
+GROUP_ID = os.environ['GROUP_ID']
 
 # Month translation dictionary
 month_translation = {
@@ -53,11 +55,14 @@ def get_game_ids(_url):
 
     reg_soup = BeautifulSoup(reg_page.content, 'html.parser')
     game_ids = []
+    other_game_ids = []
     for game in reg_soup.find_all(class_='schedule-block-head w-inline-block'):
         if game.find(class_='h2 h2-game-card h2-left').text == 'Квиз, плиз! YEREVAN':
             game_ids.append(game['href'].split('=')[1])
+        else:
+            other_game_ids.append(game['href'].split('=')[1])
     logging.info(f'Parsed {len(game_ids)} game IDs from the registration page')
-    return game_ids
+    return game_ids, other_game_ids
 
 
 def get_game_attrs(_game_id):
@@ -172,12 +177,31 @@ def register(_game_id):
         raise
 
 
+def send_message(_bot_token, _group_id, _message):
+    """
+    Sends a message to a channel.
+    """
+    url = f'https://api.telegram.org/bot{_bot_token}/sendMessage'
+    body = {'chat_id': _group_id, 'text': _message}
+    response = req.post(url, json=body)
+
+    if response.status_code == 200:
+        message_data = response.json()
+        logger.info(f'Message sent successfully! Message: {message_data["result"]["text"]}')
+        return message_data['result']
+    else:
+        logger.error(f'Failed to send message. Status code: {response.status_code}')
+        logger.info(f'Response: {response.json()}')
+        return None
+
+
 def lambda_handler(event, context):
     """
     Main function.
     """
     logging.info('Starting')
-    game_ids = get_game_ids(SCHEDULE_URL)
+    all_game_ids = get_game_ids(SCHEDULE_URL)
+    game_ids = all_game_ids[0]  # classic games to register
     saved_game_ids = get_all_game_ids(DYNAMODB_TABLE_NAME)
 
     # Game ids may be added manually during Lambda invocation. Format: {"game_ids": []}
@@ -187,13 +211,33 @@ def lambda_handler(event, context):
 
     game_ids.extend(str(x) for x in event['game_ids'])
     new_game_ids = [x for x in game_ids if x not in saved_game_ids]
-    logging.info('Found %d classical game(s), %d of them are new', len(game_ids), len(new_game_ids))
+    logging.info(f'Found {len(game_ids)} classical game(s), {len(new_game_ids)} of them are new')
 
+    # Register ащк new games
     for game_id in new_game_ids:
         register(game_id)
         game_date, game_time, game_venue, game_type = get_game_attrs(game_id)
-        put_item(DYNAMODB_TABLE_NAME, game_id, game_date, str(date.today()), game_type, game_time, game_venue)
+        put_item(DYNAMODB_TABLE_NAME,
+                 game_id,
+                 game_date,
+                 pdl.today().format('YYYY-MM-DD'),
+                 game_type,
+                 game_time,
+                 game_venue)
         sleep(1)
+
+    # Send non-classical games to the group if it's not a manual run
+    if not event['game_ids']:
+        other_game_ids = all_game_ids[1]
+        logging.info(f'Found {len(other_game_ids)} other game(s)')
+        message = 'Тематические игры на следующей неделе:\n\n'
+        for game_id in other_game_ids:
+            game_attrs = get_game_attrs(game_id)
+            if pdl.parse(game_attrs[0]).week_of_year == pdl.today().add(weeks=1).week_of_year:
+                message += f'{game_attrs[0]} {game_attrs[3]}, ID {game_id}\n'
+
+        send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
+
     logging.info('All done!')
 
 

@@ -46,3 +46,11 @@ variable "dynamodb_table_name" {
   type    = string
   default = "QuizPleaseReg"
 }
+
+variable "bot_token" {
+  type = string
+}
+
+variable "group_id" {
+  type = string
+}
