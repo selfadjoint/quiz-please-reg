@@ -213,18 +213,23 @@ def lambda_handler(event, context):
     new_game_ids = [x for x in game_ids if x not in saved_game_ids]
     logging.info(f'Found {len(game_ids)} classical game(s), {len(new_game_ids)} of them are new')
 
-    # Register ащк new games
-    for game_id in new_game_ids:
-        register(game_id)
-        game_date, game_time, game_venue, game_type = get_game_attrs(game_id)
-        put_item(DYNAMODB_TABLE_NAME,
-                 game_id,
-                 game_date,
-                 pdl.today().format('YYYY-MM-DD'),
-                 game_type,
-                 game_time,
-                 game_venue)
-        sleep(1)
+    # Register for new games
+    if new_game_ids:
+        message = 'Мы зарегистрировались на игры:\n\n'
+        for game_id in new_game_ids:
+            register(game_id)
+            game_date, game_time, game_venue, game_type = get_game_attrs(game_id)
+            put_item(DYNAMODB_TABLE_NAME,
+                     game_id,
+                     game_date,
+                     pdl.today().format('YYYY-MM-DD'),
+                     game_type,
+                     game_time,
+                     game_venue)
+            message += f"{pdl.parse(game_date).format('dd, DD MMMM', locale='ru').capitalize()}, {game_type}\n"
+            sleep(1)
+
+        send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
 
     # Send non-classical games to the group if it's not a manual run
     if not event['game_ids']:
@@ -234,7 +239,8 @@ def lambda_handler(event, context):
         for game_id in other_game_ids:
             game_attrs = get_game_attrs(game_id)
             if pdl.parse(game_attrs[0]).week_of_year == pdl.today().add(weeks=1).week_of_year:
-                message += f'{game_attrs[0]} {game_attrs[3]}, ID {game_id}\n'
+                message += (f"{pdl.parse(game_attrs[0]).format('dd, DD MMMM', locale='ru').capitalize()},"
+                            f" {game_attrs[3]}, ID {game_id}\n")
 
         send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
 
