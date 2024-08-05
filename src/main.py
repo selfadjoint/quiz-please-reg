@@ -182,7 +182,7 @@ def send_message(_bot_token, _group_id, _message):
     Sends a message to a channel.
     """
     url = f'https://api.telegram.org/bot{_bot_token}/sendMessage'
-    body = {'chat_id': _group_id, 'text': _message}
+    body = {'chat_id': _group_id, 'text': _message, 'parse_mode': 'MarkdownV2'}
     response = req.post(url, json=body)
 
     if response.status_code == 200:
@@ -240,7 +240,7 @@ def lambda_handler(event, context):
             game_attrs = get_game_attrs(game_id)
             if pdl.parse(game_attrs[0]).week_of_year == pdl.today().add(weeks=1).week_of_year:
                 message += (f"{pdl.parse(game_attrs[0]).format('dd, DD MMMM', locale='ru').capitalize()},"
-                            f" {game_attrs[3]}, ID {game_id}\n")
+                            f" {game_attrs[3]}, ID `{game_id}`\n")
 
         send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
 
