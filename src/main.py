@@ -78,8 +78,9 @@ def get_game_attrs(_game_id):
             'div', class_='text text-grey').text.split()[-1]
         _venue = soup.find_all('div', class_='game-info-column')[1].find(
             'div', class_='text').text.replace(' Yerevan', '')
-        _type = soup.find_all('div', class_='game-heading-info')[0].find('h1').text.replace(' YEREVAN', '')
-        _type = 'Классическая игра' if _type == 'Квиз, плиз!' else _type
+        _type = soup.find_all('div', class_='game-heading-info')[0].find('h1').text
+        _type = 'Классическая игра' if _type == 'Квиз, плиз! YEREVAN' else _type
+        _type = _type.replace(' YEREVAN', '').replace('Квиз, плиз! ', '')
     except Exception as e:
         logging.error(f'Failed to get game date for game ID {_game_id}: {e}')
         return None
@@ -182,7 +183,8 @@ def send_message(_bot_token, _group_id, _message):
     Sends a message to a channel.
     """
     url = f'https://api.telegram.org/bot{_bot_token}/sendMessage'
-    body = {'chat_id': _group_id, 'text': _message, 'parse_mode': 'MarkdownV2'}
+    body = {'chat_id': _group_id, 'text': _message, 'parse_mode': 'HTML',
+            'link_preview_options': {'is_disabled': True}}
     response = req.post(url, json=body)
 
     if response.status_code == 200:
@@ -239,8 +241,9 @@ def lambda_handler(event, context):
         for game_id in other_game_ids:
             game_attrs = get_game_attrs(game_id)
             if pdl.parse(game_attrs[0]).week_of_year == pdl.today().add(weeks=1).week_of_year:
-                message += (f"{pdl.parse(game_attrs[0]).format('dd, DD MMMM', locale='ru').capitalize()},"
-                            f" {game_attrs[3]}, ID `{game_id}`\n")
+                message += (
+                    f"{pdl.parse(game_attrs[0]).format('dd, DD MMMM', locale='ru').capitalize()},"
+                    f" <a href=\"{GAME_PAGE_URL_TEMPLATE.format(game_id)}\">{game_attrs[3]}</a>, ID <code>{game_id}</code>\n")
 
         send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
 
