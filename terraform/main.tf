@@ -144,6 +144,7 @@ resource "aws_lambda_permission" "allow_execution" {
 
 resource "aws_cloudwatch_event_rule" "schedule_rule" {
   name                = var.resource_name
+  description         = "Scheduled rule to trigger new game registrations every Monday"
   schedule_expression = "cron(15 11 ? * MON *)"
 }
 
