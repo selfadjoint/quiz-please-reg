@@ -42,15 +42,16 @@ variable "team_size" {
   default = 9
 }
 
-variable "dynamodb_table_name" {
-  type    = string
-  default = "QuizPleaseReg"
-}
-
 variable "bot_token" {
   type = string
 }
 
 variable "group_id" {
   type = string
+}
+
+variable "resource_name" {
+  description = "The prefix for all resource names"
+  type        = string
+  default     = "QuizPleaseReg"
 }

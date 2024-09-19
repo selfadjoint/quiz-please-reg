@@ -16,20 +16,22 @@ provider "aws" {
   profile                  = var.aws_profile
 }
 
-data "aws_iam_policy_document" "lambda_assume_role_policy" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-  }
-}
-
 resource "aws_iam_role" "lambda_execution_role" {
-  name               = "lambda_execution_role"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+  name = var.resource_name
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Sid    = "",
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_execution_role_policy_attachment" {
@@ -38,7 +40,7 @@ resource "aws_iam_role_policy_attachment" "lambda_execution_role_policy_attachme
 }
 
 resource "aws_iam_role_policy" "lambda_dynamodb_access" {
-  name = "lambda_dynamodb_access"
+  name = var.resource_name
   role = aws_iam_role.lambda_execution_role.id
 
   policy = <<EOF
@@ -69,7 +71,7 @@ EOF
 }
 
 resource "aws_dynamodb_table" "game_ids_table" {
-  name         = var.dynamodb_table_name
+  name         = var.resource_name
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "game_id"
 
@@ -104,10 +106,10 @@ resource "aws_dynamodb_table" "game_ids_table" {
   tags = var.tags
 }
 
-resource "aws_lambda_function" "lambda_function" {
-  description   = "Register for QuizPlease games"
-  filename      = "lambda.zip"
-  function_name = "QuizPleaseReg"
+resource "aws_lambda_function" "game_reg" {
+  description   = "Register for QuizPlease games and send notifications to Telegram group"
+  filename      = "${path.module}/lambda.zip"
+  function_name = var.resource_name
   role          = aws_iam_role.lambda_execution_role.arn
   handler       = "main.lambda_handler"
 
@@ -123,7 +125,7 @@ resource "aws_lambda_function" "lambda_function" {
       CPT_NAME            = var.cpt_name
       CPT_PHONE           = var.cpt_phone
       TEAM_SIZE           = var.team_size
-      DYNAMODB_TABLE_NAME = var.dynamodb_table_name
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.game_ids_table.name
       BOT_TOKEN           = var.bot_token
       GROUP_ID            = var.group_id
     }
@@ -132,21 +134,21 @@ resource "aws_lambda_function" "lambda_function" {
   tags = var.tags
 }
 
-resource "aws_cloudwatch_event_rule" "every_monday_rule" {
-  name                = "every_monday_rule"
+resource "aws_lambda_permission" "allow_execution" {
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.game_reg.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.schedule_rule.arn
+}
+
+resource "aws_cloudwatch_event_rule" "schedule_rule" {
+  name                = var.resource_name
   schedule_expression = "cron(15 11 ? * MON *)"
 }
 
-resource "aws_cloudwatch_event_target" "every_monday_target" {
-  rule      = aws_cloudwatch_event_rule.every_monday_rule.name
-  target_id = "lambda_function_target"
-  arn       = aws_lambda_function.lambda_function.arn
-}
-
-resource "aws_lambda_permission" "allow_cloudwatch_to_call_lambda" {
-  statement_id  = "AllowExecutionFromCloudWatch"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.lambda_function.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.every_monday_rule.arn
+resource "aws_cloudwatch_event_target" "lambda_target" {
+  rule      = aws_cloudwatch_event_rule.schedule_rule.name
+  target_id = var.resource_name
+  arn       = aws_lambda_function.game_reg.arn
 }
