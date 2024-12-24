@@ -93,8 +93,10 @@ def get_game_attrs(_game_id):
         _date_raw.append('2022')
     elif int(_game_id) < 69919:
         _date_raw.append('2023')
-    else:
+    elif int(_game_id) < 93630:
         _date_raw.append('2024')
+    else:
+        _date_raw.append('2025')
 
     _date = '-'.join(_date_raw[::-1])
     return _date, _time, _venue, _type
