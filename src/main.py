@@ -236,8 +236,8 @@ def lambda_handler(event, context):
         send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
 
     # Send non-classical games to the group if it's not a manual run
-    if not event['game_ids']:
-        other_game_ids = all_game_ids[1]
+    other_game_ids = all_game_ids[1]
+    if not event['game_ids'] and other_game_ids:
         logging.info(f'Found {len(other_game_ids)} other game(s)')
         message = 'Тематические игры на следующей неделе:\n\n'
         for game_id in other_game_ids:
