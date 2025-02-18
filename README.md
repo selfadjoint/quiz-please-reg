@@ -5,12 +5,31 @@ This project contains an AWS Lambda function and Terraform configuration to regi
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
 - [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
 - [Setup](#setup)
 - [Environment Variables](#environment-variables)
 - [Usage](#usage)
-- [Important Note](#important-note)
+- [Clean Up](#clean-up)
+
+## Project Structure
+
+```plaintext
+├── src
+│   ├── main.py                # Lambda function code
+│   ├── requirements.txt       # Python dependency definitions
+│   └── (other source files or folders)
+└── terraform
+    ├── main.tf                # Terraform configuration
+    ├── variables.tf           # Input variables
+    ├── backend.hcl            # Backend configuration (not committed; see below)
+    └── (other Terraform files)
+├── README.md
+```
+
+- **src**: Contains the Lambda function source code and the dependency definition.
+- **terraform**: Contains the Terraform configuration for deploying AWS resources.
+
 
 ## Prerequisites
 
@@ -18,69 +37,75 @@ Before you begin, ensure you have the following installed:
 
 - [AWS CLI](https://aws.amazon.com/cli/)
 - [Terraform](https://www.terraform.io/)
-- [Python 3.8+](https://www.python.org/)
+- [Python 3.11+](https://www.python.org/)
 - [pip](https://pip.pypa.io/en/stable/)
 - [Telegram bot and a group to send info to](https://core.telegram.org/bots)
 
-## Project Structure
-
-```plaintext
-quiz-please-reg/
-├── src/
-│   ├── main.py
-│   ├── requirements.txt
-│   ├── dependencies
-├── terraform/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   ├── lambda.zip
-├── README.md
-```
 
 ## Setup
 
-1. **Clone the repository**:
+### 1. Clone the repository:
 
    ```bash
    git clone https://github.com/your-repo/quiz-plese-reg.git
    cd quiz-please-reg
 
-2. **Navigate to the Terraform directory**:
+### 2. Install Python Dependencies
+The dependencies are not committed to the repository. To install them into the src folder, run:
+```bash
+pip install --upgrade --target ./src -r src/requirements.txt
+```
+This command installs all required Python packages into the src directory so that they are included in the Lambda deployment package.
 
-   ```bash
-   cd ../terraform
-   ```
+### 3. Configure the Terraform Backend and Variables
+Terraform uses an S3 backend for state storage. Since sensitive information should not be committed to the repository, create a separate backend configuration file.
 
-3. **Initialize Terraform**:
+Create a file named `backend.hcl` inside the `terraform` folder with content similar to:
 
-   ```bash
-   terraform init
-   ```
+```hcl
+bucket       = "your-tf-state-bucket"                  # Replace with your S3 bucket name
+key          = "your-resource-name/terraform.tfstate"  # Adjust as needed
+region       = "us-east-1"                             # Your AWS region
+profile      = "your_aws_profile"                      # The AWS CLI profile to use
+encrypt      = true
+use_lockfile = true
+```
+**Create a `terraform.tfvars` file with the necessary variables. Example**:
 
-4. **Create a `terraform.tfvars` file with the necessary variables. Example**:
+```hcl
+aws_credentials_file       = "~/.aws/credentials"
+aws_region                 = "us-east-1"
+team_name                  = "YourTeamName"
+cpt_email                  = "your-email@example.com"
+cpt_name                   = "YourCaptainName"
+cpt_phone                  = "1234567890"
+team_size                  = "5"
+dynamodb_table_name        = "QuizPleaseGames"
+aws_credentials_file       = "~/.aws/credentials"
+aws_profile                = "default"
+bot_token                  = "1234567890:ABCDEF"
+group_id                   = "-1234567890"
+```
 
-   ```hcl
-   aws_region                 = "us-east-1"
-   team_name                  = "YourTeamName"
-   cpt_email                  = "your-email@example.com"
-   cpt_name                   = "YourCaptainName"
-   cpt_phone                  = "1234567890"
-   team_size                  = "5"
-   dynamodb_table_name        = "QuizPleaseGames"
-   aws_credentials_file       = "~/.aws/credentials"
-   aws_profile                = "default"
-   bot_token                  = "1234567890:ABCDEF"
-   group_id                   = "-1234567890"
-   ```
+### 4. Initialize Terraform
+Change to the terraform directory and initialize Terraform using the backend configuration:
+```bash
+cd terraform
+terraform init -backend-config=backend.hcl
+```
+This command sets up the backend and downloads required providers.
 
-4. **Apply the Terraform configuration**:
+### 5. Review and Apply the Terraform Configuration
+First, run a plan to see the changes that Terraform will apply:
+```bash
+terraform plan
+```
 
-   ```bash
-   terraform apply
-   ```
-
-   Review the changes and type `yes` to confirm.
+If everything looks correct, deploy the resources with:
+```bash
+terraform apply
+```
+Confirm the apply action when prompted.
 
 ## Environment Variables
 
@@ -108,6 +133,9 @@ Once deployed, the Lambda function will run every Monday at 11:15 UTC. It will:
 
 Logs for the Lambda function can be viewed in AWS CloudWatch.
 
-## License
-
-This project is licensed under the MIT License.
+## Clean Up
+To remove all resources created by Terraform, run:
+```bash
+terraform destroy
+```
+This will tear down the deployed AWS resources.
