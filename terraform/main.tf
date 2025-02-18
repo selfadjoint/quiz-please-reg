@@ -6,7 +6,8 @@ terraform {
     }
   }
 
-  required_version = ">= 1.2.0"
+  required_version = ">= 1.10.0"
+  backend "s3" {}
 }
 
 
@@ -14,6 +15,13 @@ provider "aws" {
   region                   = var.aws_region
   shared_credentials_files = var.aws_credentials_file
   profile                  = var.aws_profile
+}
+
+# Archive the Lambda code directory into a zip file.
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../src"
+  output_path = "${path.module}/lambda.zip"
 }
 
 resource "aws_iam_role" "lambda_execution_role" {
@@ -107,16 +115,14 @@ resource "aws_dynamodb_table" "game_ids_table" {
 }
 
 resource "aws_lambda_function" "game_reg" {
-  description   = "Register for QuizPlease games and send notifications to Telegram group"
-  filename      = "${path.module}/lambda.zip"
-  function_name = var.resource_name
-  role          = aws_iam_role.lambda_execution_role.arn
-  handler       = "main.lambda_handler"
-
-  source_code_hash = filebase64sha256("lambda.zip")
-
-  runtime = "python3.11"
-  timeout = 300
+  description      = "Register for QuizPlease games and send notifications to Telegram group"
+  function_name    = var.resource_name
+  role             = aws_iam_role.lambda_execution_role.arn
+  handler          = "main.lambda_handler"
+  runtime          = "python3.11"
+  filename         = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  timeout          = 300
 
   environment {
     variables = {
