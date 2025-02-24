@@ -1,6 +1,7 @@
 import logging
 import os
 from time import sleep
+import re
 
 import boto3
 import pendulum as pdl
@@ -47,20 +48,25 @@ def get_game_ids(_url):
     Gets the game IDs from the registration page.
     """
     try:
-        reg_page = req.get(_url)
-        reg_page.raise_for_status()
+        page = req.get(_url)
+        page.raise_for_status()
     except req.exceptions.RequestException as e:
         logging.error('Failed to get game IDs from the registration page: %s', e)
-        return []
+        return [], []
 
-    reg_soup = BeautifulSoup(reg_page.content, 'html.parser')
+    soup = BeautifulSoup(page.content, 'html.parser')
+
     game_ids = []
     other_game_ids = []
-    for game in reg_soup.find_all(class_='schedule-block-head w-inline-block'):
-        if game.find(class_='h2 h2-game-card h2-left').text == 'Квиз, плиз! YEREVAN':
-            game_ids.append(game['href'].split('=')[1])
-        else:
-            other_game_ids.append(game['href'].split('=')[1])
+
+    for game in soup.find_all(class_='schedule-block-head w-inline-block'):
+        game_id = re.search(r'id=(\d+)', game['href'])
+        if game_id:
+            if game.find(class_='h2 h2-game-card h2-left').text == 'Квиз, плиз! YEREVAN':
+                game_ids.append(game_id.group(1))
+            else:
+                other_game_ids.append(game_id.group(1))
+
     logging.info(f'Parsed {len(game_ids)} game IDs from the registration page')
     return game_ids, other_game_ids
 
