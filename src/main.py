@@ -168,6 +168,8 @@ def register(_game_id):
         'QpRecord[count]': os.environ['TEAM_SIZE'],
         'QpRecord[custom_fields_values]': [],
         'QpRecord[comment]': '',
+        'have_cert': 1,
+        'promo_code': os.environ['PROMOTION_CODE'],
         'QpRecord[game_id]': _game_id,
         'QpRecord[payment_type]': 2,
     }
