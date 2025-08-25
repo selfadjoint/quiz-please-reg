@@ -42,6 +42,10 @@ variable "team_size" {
   default = 9
 }
 
+variable "promotion_code" {
+  type = string
+}
+
 variable "bot_token" {
   type = string
 }

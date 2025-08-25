@@ -131,6 +131,7 @@ resource "aws_lambda_function" "game_reg" {
       CPT_NAME            = var.cpt_name
       CPT_PHONE           = var.cpt_phone
       TEAM_SIZE           = var.team_size
+      PROMOTION_CODE      = var.promotion_code
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.game_ids_table.name
       BOT_TOKEN           = var.bot_token
       GROUP_ID            = var.group_id
