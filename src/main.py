@@ -246,17 +246,18 @@ def lambda_handler(event, context):
         # Send non-classical games to the group if it's not a manual run
         other_game_ids = all_game_ids[1]
         if not event['game_ids'] and other_game_ids:
-            lines = ['Тематические игры на следующей неделе:\n']
             logging.info(f'Found {len(other_game_ids)} other game(s)')
+            next_week_games = []
             for game_id in other_game_ids:
                 game_attrs = get_game_attrs(game_id)
                 if pdl.parse(game_attrs[0]).week_of_year == pdl.today().add(weeks=1).week_of_year:
-                    lines.append(
+                    next_week_games.append(
                         f"{pdl.parse(game_attrs[0]).format('dd, DD MMMM', locale='ru').capitalize()}, "
                         f"<a href=\"{GAME_PAGE_URL_TEMPLATE.format(game_id)}\">{game_attrs[3]}</a>, ID <code>{game_id}</code>"
                     )
-            if len(lines) > 1:
-                send_message(BOT_TOKEN, GROUP_ID, '\n'.join(lines).rstrip())
+            if next_week_games:
+                message = 'Тематические игры на следующей неделе:\n\n' + '\n'.join(next_week_games)
+                send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
 
     logging.info('All done!')
 
