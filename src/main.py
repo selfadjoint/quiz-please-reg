@@ -23,6 +23,25 @@ REG_URL = 'https://yerevan.quizplease.am/ajax/save-record'
 BOT_TOKEN = os.environ['BOT_TOKEN']
 GROUP_ID = os.environ['GROUP_ID']
 
+# Headers to mimic a real browser
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+}
+
+# Create a session to maintain cookies
+session = req.Session()
+session.headers.update(HEADERS)
+
 # Month translation dictionary
 month_translation = {
     'января': '01',
@@ -48,7 +67,7 @@ def get_game_ids(_url):
     Gets the game IDs from the registration page.
     """
     try:
-        page = req.get(_url)
+        page = session.get(_url)
         page.raise_for_status()
     except req.exceptions.RequestException as e:
         logging.error('Failed to get game IDs from the registration page: %s', e)
@@ -77,7 +96,7 @@ def get_game_attrs(_game_id):
     """
     game_url = GAME_PAGE_URL_TEMPLATE.format(_game_id)
     try:
-        page = req.get(game_url)
+        page = session.get(game_url)
         soup = BeautifulSoup(page.content, 'html.parser')
         _date_raw = soup.find_all('div', class_='game-info-column')[2].find('div', class_='text').text.split()
         _time = soup.find_all('div', class_='game-info-column')[2].find(
@@ -165,7 +184,7 @@ def register(_game_id):
     Registers at a game with the given ID.
     """
     logging.info('Registering at game %s', _game_id)
-    headers = {'Contect-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
+    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
     body = {
         'QpRecord[teamName]': os.environ['TEAM_NAME'],
         'QpRecord[phone]': os.environ['CPT_PHONE'],
@@ -180,7 +199,7 @@ def register(_game_id):
         'QpRecord[payment_type]': 2,
     }
     try:
-        reg = req.post(REG_URL, data=body, headers=headers)
+        reg = session.post(REG_URL, data=body, headers=headers)
         reg.raise_for_status()
         logging.info('Registration result: %s', reg.text)
     except Exception as e:
