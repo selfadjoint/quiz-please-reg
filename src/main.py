@@ -22,6 +22,7 @@ DYNAMODB_TABLE_NAME = os.environ['DYNAMODB_TABLE_NAME']
 REG_URL = 'https://yerevan.quizplease.am/ajax/save-record'
 BOT_TOKEN = os.environ['BOT_TOKEN']
 GROUP_ID = os.environ['GROUP_ID']
+ADMIN_CHAT_ID = os.environ.get('ADMIN_CHAT_ID', GROUP_ID)  # Fallback to GROUP_ID if not set
 
 # Headers to mimic a real browser
 HEADERS = {
@@ -484,6 +485,14 @@ def lambda_handler(event, context):
                 if next_week_games:
                     message = 'Ближайшие тематические игры:\n\n' + '\n'.join(next_week_games)
                     send_message(BOT_TOKEN, GROUP_ID, message.rstrip())
+
+                # Send summary of failures for non-classic games if any
+                if failed_other_games:
+                    failure_msg = f"⚠️ <b>Failed to parse {len(failed_other_games)} non-classic game(s)</b>\n\n"
+                    for gid, error in failed_other_games:
+                        game_link = GAME_PAGE_URL_TEMPLATE.format(gid)
+                        failure_msg += f"<a href=\"{game_link}\">Game {gid}</a>\nError: {error}\n\n"
+                    send_message(BOT_TOKEN, ADMIN_CHAT_ID, failure_msg.rstrip())
 
     logging.info('All done!')
 

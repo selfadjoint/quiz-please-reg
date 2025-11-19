@@ -135,6 +135,7 @@ resource "aws_lambda_function" "game_reg" {
       DYNAMODB_TABLE_NAME = aws_dynamodb_table.game_ids_table.name
       BOT_TOKEN           = var.bot_token
       GROUP_ID            = var.group_id
+      ADMIN_CHAT_ID       = var.admin_chat_id != "" ? var.admin_chat_id : var.group_id
     }
   }
 

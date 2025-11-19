@@ -54,6 +54,12 @@ variable "group_id" {
   type = string
 }
 
+variable "admin_chat_id" {
+  type        = string
+  description = "Telegram chat ID for error notifications (defaults to group_id if not provided)"
+  default     = ""
+}
+
 variable "resource_name" {
   description = "The prefix for all resource names"
   type        = string
