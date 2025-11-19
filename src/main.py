@@ -2,6 +2,7 @@ import logging
 import os
 from time import sleep
 import re
+from functools import wraps
 
 import boto3
 import pendulum as pdl
@@ -67,6 +68,49 @@ month_translation = {
 dynamodb = boto3.client('dynamodb')
 
 
+def retry_on_failure(max_attempts=3, delay_seconds=20):
+    """
+    Decorator that retries a function up to max_attempts times with a delay between attempts.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_attempts:
+                        logging.warning(
+                            f'{func.__name__} failed on attempt {attempt}/{max_attempts}: {e}. Retrying in {delay_seconds}s...')
+                        sleep(delay_seconds)
+                    else:
+                        logging.error(f'{func.__name__} failed after {max_attempts} attempts: {e}')
+            raise last_exception
+
+        return wrapper
+
+    return decorator
+
+
+def ensure_schedule_visited():
+    """
+    Ensures the schedule page has been visited to establish a proper session.
+    This helps avoid CAPTCHA on game pages.
+    """
+    global _schedule_visited
+    if not _schedule_visited:
+        try:
+            logging.debug('Visiting schedule page to establish session...')
+            session.get(SCHEDULE_URL)
+            _schedule_visited = True
+            sleep(2)  # Small delay to appear more human-like
+        except Exception as e:
+            logging.warning(f'Failed to pre-visit schedule page: {e}')
+
+
 def get_game_ids(_url):
     """
     Gets the game IDs from the registration page.
@@ -100,10 +144,12 @@ def get_game_ids(_url):
             continue
 
     total_games = len(game_ids) + len(other_game_ids)
-    logging.info(f'Parsed {total_games} game IDs from the registration page ({len(game_ids)} classic, {len(other_game_ids)} other)')
+    logging.info(
+        f'Parsed {total_games} game IDs from the registration page ({len(game_ids)} classic, {len(other_game_ids)} other)')
     return game_ids, other_game_ids
 
 
+@retry_on_failure(max_attempts=3, delay_seconds=20)
 def get_game_attrs(_game_id):
     """
     Fetches and processing data for a single game.
@@ -133,10 +179,10 @@ def get_game_attrs(_game_id):
                 if any(month in text_content for month in month_translation.keys()):
                     date_column = col
                     break
-        
+
         if date_column is None:
             raise ValueError('Could not find column with date information')
-        
+
         # Extract date and time from the date column
         _date_raw = date_column.find('div', class_='text').text.split()
         time_elem = date_column.find('div', class_='text text-grey')
@@ -150,7 +196,7 @@ def get_game_attrs(_game_id):
                 _date_raw = _date_raw[:-1]  # Remove time from date
             else:
                 raise ValueError('Could not find time information')
-        
+
         # Find venue column (contains address with "ул" or "Ереван")
         _venue = None
         for col in info_columns:
@@ -161,7 +207,7 @@ def get_game_attrs(_game_id):
                 if venue_elem:
                     _venue = venue_elem.text.strip().replace(' Yerevan', '')
                 break
-        
+
         if _venue is None:
             raise ValueError('Could not find venue information')
 
@@ -268,6 +314,7 @@ def get_all_game_ids(_table, _only_registered=False):
     return game_ids
 
 
+@retry_on_failure(max_attempts=3, delay_seconds=20)
 def register(_game_id):
     """
     Registers at a game with the given ID.
@@ -340,7 +387,8 @@ def lambda_handler(event, context):
             already_registered_ids = [x for x in manual_game_ids if x in saved_game_ids]
 
             if already_registered_ids:
-                logging.warning(f'Skipping {len(already_registered_ids)} already registered game(s): {already_registered_ids}')
+                logging.warning(
+                    f'Skipping {len(already_registered_ids)} already registered game(s): {already_registered_ids}')
 
             if new_manual_game_ids:
                 message = 'Мы зарегистрировались на игры:\n\n'
