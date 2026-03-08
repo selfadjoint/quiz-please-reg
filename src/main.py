@@ -149,7 +149,7 @@ def get_game_ids(_url):
     return game_ids, other_game_ids
 
 
-@retry_on_failure(max_attempts=3, delay_seconds=20)
+@retry_on_failure(max_attempts=5, delay_seconds=60)
 def get_game_attrs(_game_id):
     """
     Fetches and processing data for a single game.
@@ -234,8 +234,10 @@ def get_game_attrs(_game_id):
             _date_raw.append('2023')
         elif int(_game_id) < 93630:
             _date_raw.append('2024')
-        else:
+        elif int(_game_id) < 119884:
             _date_raw.append('2025')
+        else:
+            _date_raw.append('2026')
 
         _date = '-'.join(_date_raw[::-1])
         return _date, _time, _venue, _type
@@ -314,7 +316,7 @@ def get_all_game_ids(_table, _only_registered=False):
     return game_ids
 
 
-@retry_on_failure(max_attempts=3, delay_seconds=20)
+@retry_on_failure(max_attempts=5, delay_seconds=60)
 def register(_game_id):
     """
     Registers at a game with the given ID.
@@ -543,7 +545,3 @@ def lambda_handler(event, context):
                     send_message(BOT_TOKEN, ADMIN_CHAT_ID, failure_msg.rstrip())
 
     logging.info('All done!')
-
-
-if __name__ == '__main__':
-    lambda_handler(event={'game_ids': []}, context=None)
