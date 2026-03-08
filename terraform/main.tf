@@ -47,75 +47,8 @@ resource "aws_iam_role_policy_attachment" "lambda_execution_role_policy_attachme
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy" "lambda_dynamodb_access" {
-  name = var.resource_name
-  role = aws_iam_role.lambda_execution_role.id
-
-  policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:GetItem",
-        "dynamodb:PutItem",
-        "dynamodb:Scan",
-        "dynamodb:Query"
-      ],
-      "Resource": "${aws_dynamodb_table.game_ids_table.arn}"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:Scan",
-        "dynamodb:Query"
-      ],
-      "Resource": "${aws_dynamodb_table.game_ids_table.arn}/index/*"
-    }
-  ]
-}
-EOF
-}
-
-resource "aws_dynamodb_table" "game_ids_table" {
-  name         = var.resource_name
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "game_id"
-
-  attribute {
-    name = "game_id"
-    type = "N"
-  }
-
-  attribute {
-    name = "game_date"
-    type = "S"
-  }
-
-  attribute {
-    name = "is_poll_created"
-    type = "N"
-  }
-
-  global_secondary_index {
-    name            = "game_date_index"
-    hash_key        = "game_date"
-    projection_type = "ALL"
-  }
-
-  global_secondary_index {
-    name            = "poll_created_index"
-    hash_key        = "is_poll_created"
-    range_key       = "game_id"
-    projection_type = "ALL"
-  }
-
-  tags = var.tags
-}
-
 resource "aws_lambda_function" "game_reg" {
-  description      = "Register for QuizPlease games and send notifications to Telegram group"
+  description      = "Register for QuizPlease games and persist state in PostgreSQL"
   function_name    = var.resource_name
   role             = aws_iam_role.lambda_execution_role.arn
   handler          = "main.lambda_handler"
@@ -126,16 +59,20 @@ resource "aws_lambda_function" "game_reg" {
 
   environment {
     variables = {
-      TEAM_NAME           = var.team_name
-      CPT_EMAIL           = var.cpt_email
-      CPT_NAME            = var.cpt_name
-      CPT_PHONE           = var.cpt_phone
-      TEAM_SIZE           = var.team_size
-      PROMOTION_CODE      = var.promotion_code
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.game_ids_table.name
-      BOT_TOKEN           = var.bot_token
-      GROUP_ID            = var.group_id
-      ADMIN_CHAT_ID       = var.admin_chat_id != "" ? var.admin_chat_id : var.group_id
+      TEAM_NAME      = var.team_name
+      CPT_EMAIL      = var.cpt_email
+      CPT_NAME       = var.cpt_name
+      CPT_PHONE      = var.cpt_phone
+      TEAM_SIZE      = var.team_size
+      PROMOTION_CODE = var.promotion_code
+      DB_HOST        = var.db_host
+      DB_PORT        = var.db_port
+      DB_NAME        = var.db_name
+      DB_USER        = var.db_user
+      DB_PASSWORD    = var.db_password
+      BOT_TOKEN      = var.bot_token
+      GROUP_ID       = var.group_id
+      ADMIN_CHAT_ID  = var.admin_chat_id != "" ? var.admin_chat_id : var.group_id
     }
   }
 
