@@ -135,7 +135,7 @@ The key tables are:
 
 The migration schema and notes live in:
 
-- [postgres/schema.sql](postgres/schema.sql)
+- [postgres/schema.sql](sql/schema.sql)
 - [docs/postgres-migration.md](docs/postgres-migration.md)
 
 ## Environment Variables
