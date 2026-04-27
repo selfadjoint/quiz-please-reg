@@ -5,7 +5,7 @@ from functools import wraps
 from time import sleep
 
 import pendulum as pdl
-import requests as req
+from curl_cffi import requests as req
 from bs4 import BeautifulSoup
 
 from game_details import parse_game_page_html
@@ -23,7 +23,7 @@ logger.setLevel(logging.INFO)
 
 SCHEDULE_URL = "https://yerevan.quizplease.ru/schedule"
 GAME_PAGE_URL_TEMPLATE = "https://yerevan.quizplease.ru/game-page?id={}"
-REG_URL = "https://yerevan.quizplease.am/ajax/save-record"
+REG_URL = "https://yerevan.quizplease.ru/ajax/save-record"
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 GROUP_ID = os.environ["GROUP_ID"]
 ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", GROUP_ID)
@@ -43,9 +43,14 @@ HEADERS = {
     "Referer": "https://yerevan.quizplease.ru/schedule",
 }
 
-session = req.Session()
+session = req.Session(impersonate="chrome120")
 session.headers.update(HEADERS)
 _schedule_visited = False
+
+
+def _is_captcha_response(response) -> bool:
+    """Return True if the response is a Yandex SmartCaptcha page instead of the expected content."""
+    return "showcaptcha" in response.url or "Вы не робот" in response.text
 
 
 def retry_on_failure(max_attempts=3, delay_seconds=20):
@@ -96,6 +101,9 @@ def get_game_ids(url):
     try:
         page = session.get(url)
         page.raise_for_status()
+        if _is_captcha_response(page):
+            logger.error("Yandex CAPTCHA triggered on schedule page — bot detection active")
+            return [], []
         _schedule_visited = True
         sleep(2)
     except req.exceptions.RequestException as exc:
@@ -135,6 +143,8 @@ def get_game_details(game_id):
 
     page = session.get(GAME_PAGE_URL_TEMPLATE.format(game_id))
     page.raise_for_status()
+    if _is_captcha_response(page):
+        raise ValueError(f"Yandex CAPTCHA triggered fetching game page {game_id}")
     sleep(2)
 
     game = parse_game_page_html(page.content, int(game_id))
@@ -148,6 +158,7 @@ def register(game_id):
     logger.info("Registering at game %s", game_id)
     headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
     body = {
+        "record-from-form": 1,
         "QpRecord[teamName]": os.environ["TEAM_NAME"],
         "QpRecord[phone]": os.environ["CPT_PHONE"],
         "QpRecord[email]": os.environ["CPT_EMAIL"],
@@ -155,6 +166,8 @@ def register(game_id):
         "QpRecord[count]": os.environ["TEAM_SIZE"],
         "QpRecord[custom_fields_values]": [],
         "QpRecord[comment]": "",
+        "QpRecord[reserve]": 0,
+        "reservation": "",
         "have_cert": 1,
         "promo_code": os.environ["PROMOTION_CODE"],
         "QpRecord[game_id]": game_id,
