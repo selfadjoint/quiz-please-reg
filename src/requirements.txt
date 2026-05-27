@@ -1,15 +1,10 @@
 beautifulsoup4==4.12.2
-certifi==2023.11.17
-charset-normalizer==3.3.2
-curl_cffi==0.7.4
-idna==3.6
 pendulum==3.0.0
+playwright
 psycopg2-binary==2.9.9
 python-dateutil==2.8.2
-requests==2.31.0
 ruff==0.5.1
 six==1.16.0
 soupsieve==2.5
 time-machine==2.14.2
 tzdata==2024.1
-urllib3==1.26.18

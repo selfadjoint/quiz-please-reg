@@ -86,3 +86,16 @@ variable "resource_name" {
   type        = string
   default     = "QuizPleaseReg"
 }
+
+variable "image_tag" {
+  description = "Docker image tag to deploy"
+  type        = string
+  default     = "latest"
+}
+
+variable "proxy_url" {
+  description = "Optional HTTP/SOCKS5 proxy for Playwright (e.g. socks5://user:pass@host:port)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

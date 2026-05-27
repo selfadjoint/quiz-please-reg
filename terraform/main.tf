@@ -17,11 +17,28 @@ provider "aws" {
   profile                  = var.aws_profile
 }
 
-# Archive the Lambda code directory into a zip file.
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/../src"
-  output_path = "${path.module}/lambda.zip"
+resource "aws_ecr_repository" "quiz_please_reg" {
+  name                 = lower(var.resource_name)
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = false
+  }
+
+  tags = var.tags
+}
+
+resource "aws_ecr_repository_policy" "lambda_access" {
+  repository = aws_ecr_repository.quiz_please_reg.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "LambdaECRAccess"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = ["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"]
+    }]
+  })
 }
 
 resource "aws_iam_role" "lambda_execution_role" {
@@ -48,14 +65,13 @@ resource "aws_iam_role_policy_attachment" "lambda_execution_role_policy_attachme
 }
 
 resource "aws_lambda_function" "game_reg" {
-  description      = "Register for QuizPlease games and persist state in PostgreSQL"
-  function_name    = var.resource_name
-  role             = aws_iam_role.lambda_execution_role.arn
-  handler          = "main.lambda_handler"
-  runtime          = "python3.11"
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  timeout          = 300
+  description   = "Register for QuizPlease games and persist state in PostgreSQL"
+  function_name = var.resource_name
+  role          = aws_iam_role.lambda_execution_role.arn
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.quiz_please_reg.repository_url}:${var.image_tag}"
+  timeout       = 300
+  memory_size   = 2048
 
   environment {
     variables = {
@@ -73,6 +89,7 @@ resource "aws_lambda_function" "game_reg" {
       BOT_TOKEN      = var.bot_token
       GROUP_ID       = var.group_id
       ADMIN_CHAT_ID  = var.admin_chat_id != "" ? var.admin_chat_id : var.group_id
+      PROXY_URL      = var.proxy_url
     }
   }
 
@@ -97,4 +114,8 @@ resource "aws_cloudwatch_event_target" "lambda_target" {
   rule      = aws_cloudwatch_event_rule.schedule_rule.name
   target_id = var.resource_name
   arn       = aws_lambda_function.game_reg.arn
+}
+
+output "ecr_repository_url" {
+  value = aws_ecr_repository.quiz_please_reg.repository_url
 }
