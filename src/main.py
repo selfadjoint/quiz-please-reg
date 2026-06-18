@@ -72,10 +72,23 @@ def _navigate(page: Page, url: str, referer: str | None = None, timeout: int = 3
     page.goto(url, wait_until="load", timeout=timeout, referer=referer)
     if _is_cf_challenge(page.title()):
         # CF JS challenge: wait for redirect to complete
-        page.wait_for_function(
-            "() => !document.title.includes('Just a moment') && !document.title.includes('момент')",
-            timeout=timeout,
-        )
+        try:
+            page.wait_for_function(
+                "() => !document.title.includes('Just a moment') && !document.title.includes('момент')",
+                timeout=timeout,
+            )
+        except Exception:
+            try:
+                current_title = page.title()
+                current_url = page.url
+                content_snippet = page.content()[:1500]
+            except Exception as diag_exc:
+                current_title = current_url = content_snippet = f"<unavailable: {diag_exc}>"
+            logger.error(
+                "CF challenge not resolved for %s | current_url=%s | title=%s | content=%s",
+                url, current_url, current_title, content_snippet,
+            )
+            raise
 
 
 def _get_page() -> Page:
@@ -164,7 +177,12 @@ def _get_page() -> Page:
         _navigate(_page, BASE_URL, timeout=30000)
         logger.info("Home page ready (title: %s)", _page.title())
     except Exception as exc:
-        logger.warning("Home page warm-up issue: %s", exc)
+        try:
+            warmup_title = _page.title()
+            warmup_snippet = _page.content()[:500]
+        except Exception:
+            warmup_title = warmup_snippet = "<unavailable>"
+        logger.warning("Home page warm-up issue: %s | title=%s | content=%s", exc, warmup_title, warmup_snippet)
 
     sleep(2)
     return _page
